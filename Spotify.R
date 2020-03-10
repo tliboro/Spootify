@@ -15,13 +15,11 @@ get_artist_audio_features('Someone You Loved (Future Humans Remix)')
 
 get_my_recently_played(limit = 5) %>% View
 
-
-
 #'Personal playlists that should be used for analysis and possible prediction 
 #'
 COLS_playlist <- c('track.name', 'track.popularity', 'danceability', 'energy', 'key', 'loudness', 'mode', 
                    'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 
-                   'track.id', 'track.duration_ms', 'track.explicit')
+                   'track.id', 'track.duration_ms', 'track.explicit', 'track.album.artists')
 
 
 my_playlists <- get_user_playlists(my_id) %>% as.data.table
@@ -32,8 +30,17 @@ mood_ty <- get_playlist_audio_features(username = my_id, playlist_uris = my_play
 #Need to make a distance metric and then color by distance 
 last1k <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'Last1k']$id) %>%
   as.data.table %>% .[, ..COLS_playlist] %>%
-  .[, Distance := ((danceability^2)+(energy^2))/2]
+  .[, Distance := ((danceability^2)+(energy^2))/2] 
 
+temp <- last1k
+
+temp <- temp[, Artist := track.album.artists[[1]]$`name`[1], by =  'track.name'] %>%
+  setcolorder(., 'Artist')
+
+getArtists <- function(playlist) {
+  dt <- playlist
+  dt$`track.album.artists`[[1]]$`name`
+}
 
 library(plotly)
 fig <- plot_ly(data = last1k, x = ~danceability, y = ~energy, type = 'scatter',
@@ -49,6 +56,7 @@ fig
 
 
 library(genius) #need the artist
+
 
 set.seed(123)
 fig2 <- plot_ly(data = last1k, x = ~danceability, y = ~energy, z = ~tempo)
