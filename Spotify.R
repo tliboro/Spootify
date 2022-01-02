@@ -1,10 +1,12 @@
 
 #'Need to use the most updated version of package by devtools
 #' devtools::install_github('charlie86/spotifyr')
+#' install.packages('httpuv')
 
 libs <- c('data.table', 'magrittr', 'spotifyr', 'ggplot2') 
 lapply(libs, require, character.only = T)
-source(paste0(getwd(), '/Desktop/PersonalProjects/GLOBALS_Spotify.R'))
+source(paste0(getwd(), '/Documents/spotify_credentials.R'))
+  
 access_token <- get_spotify_access_token()
 
 # timmy_trumpet <- get_artist_audio_features('timmy trumpet')
