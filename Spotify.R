@@ -20,6 +20,24 @@ COLS_playlist <- c('track.name', 'track.popularity', 'danceability', 'energy', '
                    'track.id', 'track.duration_ms', 'track.explicit', 'track.album.artists')
 my_playlists <- get_user_playlists(my_id) %>% as.data.table
 
+
+temp <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'ALL SAVED']$id) %>%
+  as.data.table(.)
+temp2 <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'Saved TyTy']$id) %>%
+  as.data.table(.)
+
+#Combining all saved songs and cleaning
+data_temp <- rbind(temp, temp2) %>% as.data.table
+data <- data_temp[, dup := duplicated(c(data_temp$track.name), data_temp$track.album.name)] %>%
+  .[dup %in% F, c('danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', 
+                  'instrumentalness', 'liveness', 'valence', 'tempo',
+                  'time_signature', 'added_at', 'track.artists', 'track.duration_ms', 'track.name', 
+                  'track.popularity', 'track.album.name', 'track.album.release_date', 
+                  'key_name', 'mode_name', 'key_mode', 'track.album.artists')] %>%
+  .[, Artist := track.album.artists[[1]]$`name`[1], by =  'track.name']
+
+
+
 #Need to make a distance metric and then color by distance 
 ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'ALL SAVED']$id) %>%
   as.data.table %>%
@@ -36,7 +54,7 @@ ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_pla
 
 #'NORMALIZATION OR STANDARDIZATION
 #'Considered manipulating the data; however, since the current goal is to accept any song
-#'then it would not be fair to asssume that we are all on the same spectrum for music. I'd 
+#'then it would not be fair to assume that we are all on the same spectrum for music. I'd 
 #'rather acknowledge that I need more experience in another genre than to give them a 
 #'recommendation that isn't completely explored.
 
@@ -45,11 +63,12 @@ ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_pla
 
 
 #'Data Variable Selection
-test_correlation <- ALLSAVED[, c('danceability', 'energy', 'key', 'loudness', 'mode', 
+test_correlation <- data[, c('danceability', 'energy', 'key', 'loudness', 'mode', 
                                  'speechiness', 'acousticness', 'instrumentalness',
                                  'liveness', 'valence', 'tempo', 'track.popularity')]
+
 library(corrplot) ; set.seed(123)
-M <- cor(x = test_correlation)
+M <- cor(x = test_correlation, use = 'complete.obs') #Telling correlation to ignore NA
 col1 <- colorRampPalette(c('#1DB954', '#FFFFFF', '#191414'))
 
 corrplot(M, method = 'circle', order = 'hclust', addrect = 3,  addCoef.col = 'black', tl.col = 'black', 
