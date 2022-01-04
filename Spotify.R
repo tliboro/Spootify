@@ -3,7 +3,7 @@
 #' devtools::install_github('charlie86/spotifyr')
 #' install.packages('httpuv')
 
-libs <- c('data.table', 'magrittr', 'spotifyr', 'ggplot2') 
+libs <- c('data.table', 'magrittr', 'spotifyr', 'ggplot2', 'factoextra') 
 lapply(libs, require, character.only = T)
 source(paste0(getwd(), '/Documents/spotify_credentials.R'))
   
@@ -72,21 +72,25 @@ M <- cor(x = test_correlation, use = 'complete.obs') #Telling correlation to ign
 col1 <- colorRampPalette(c('#1DB954', '#FFFFFF', '#191414'))
 
 corrplot(M, method = 'circle', order = 'hclust', addrect = 3,  addCoef.col = 'black', tl.col = 'black', 
-         tl.srt = 45, col = col1(100))
+         tl.srt = 45, col = col1(100), title = 'Correlation of Music Features')
 
-tri_vars <- c('dance_valence', 'loud_energy', #89.6%
-              'track.name')  
-# tri_vars <- c('dance_valence', 'acoustic_loudness',
+
+# tri_vars <- c('dance_valence', 'loud_energy', #89.6%
 #               'track.name')  
-
-tri_vars <- c('danceability', 'energy', 'valence', 'track.name')
-
-kmeans_DT <- ALLSAVED[, ..tri_vars] 
+# # tri_vars <- c('dance_valence', 'acoustic_loudness',
+# #               'track.name')  
+# 
+# tri_vars <- c('danceability', 'energy', 'valence', 'track.name')
+# 
+# kmeans_DT <- ALLSAVED[, ..tri_vars] 
 
 
 #SHOULD ALSO SUPPORT THIS STUDY WITH A PCA OR SVD!!!!!! - also normalize before or after??
 #Maybe nont since we don't have THAT many columns. We could see though 
 test_correlation_saved <- test_correlation %>% as.matrix
+test_correlation_saved[is.na(test_correlation_saved)] <- 0 #catching NA
+
+
 SVD_test <- svd(test_correlation_saved)
 singular_values <- SVD_test$d 
 plot(x = 1:NROW(singular_values), y = singular_values,
@@ -97,26 +101,42 @@ lines(x = 1:NROW(singular_values), y = rep(singular_values[2], NROW(singular_val
 lines(x = 1:NROW(singular_values), y = rep(singular_values[3], NROW(singular_values)), 
       type = 'l', col = 'blue')
 
-
+#'Low Rank Approximation is showing that 2 groups can be seen, but we should take time
+#'to look at the other optimal-k methods to assure that 2 groups are being seen.
 
 
 
 
 #Determining optimal-k using two direct methods and statistical testing analysis
-fviz_nbclust(x = kmeans_DT[, -c('track.name')], kmeans, method = 'wss') + 
+fviz_nbclust(x = test_correlation_saved, kmeans, method = 'wss') + 
   geom_vline(xintercept = 3, linetype = 2) +
   labs(subtitle = 'Elbow Method')
+#' 2/3 groups
+#' Elbow Method: 
 
-fviz_nbclust(x = kmeans_DT[, -c('track.name')], kmeans, method = 'silhouette') + 
+
+fviz_nbclust(x = test_correlation_saved, kmeans, method = 'silhouette') + 
   labs(subtitle = 'Silhouette Method')
+#'2 groups
+#'Silhouette Method: 
 
-fviz_nbclust(x = kmeans_DT[, -c('track.name')], kmeans, nstart = 25, nboot = 50, method = 'gap_stat') + 
+fviz_nbclust(x = test_correlation_saved, kmeans, nstart = 25, nboot = 50, method = 'gap_stat') + 
   labs(subtitle = 'Gap Statistics Method')
+#'
+#'Gap Statistics Method: Local Max
+#'Bootstrap: 
+#'Result: Did not converge in 10 iterations, but 3 groups
 
 
 #Determining optimal-k using dedrogram from Hierarchical Clustering
 #kmeans_DT2 <- ALLSAVED[, c('danceability', 'energy', 'tempo', 'track.name')] 
-d <- dist(kmeans_DT[, -c('track.name')])
+#' Seems like for Hierarchical Clustering an important step to complete is
+#' standardization and this can be done through normalize() function. It's
+#' imperative to standardize, because HC is using distances and similiarities
+#' need to be differentiated more appropriately
+
+HC_data <- normalize(test_correlation)
+d <- dist(test_correlation)
 clusters <- hclust(d, method = 'average')
 plot(clusters)
 
@@ -124,17 +144,25 @@ clusterCut <- cutree(clusters, 3)
 #'Comment: Noticing the distribution, because I may listen to different types of music
 #'then I do not want to adjust the distribution so that an input may be interpretted differently
 table(clusterCut)
-HIER_INFO <- cbind(kmeans_DT, clusterCut)
+HIER_INFO <- cbind(test_correlation, clusterCut) %>% as.data.table
+
+
 
 #'Visually understand before finding actually applying an optimal-k through different methods
 fig <- plot_ly(data = HIER_INFO, x = ~danceability, y = ~energy, z = ~valence, 
-               color = clusterCut,
-               text = ~track.name,
-               hovertemplate = paste('<br><b>Song name</b>: %{text}') )
+               color = clusterCut)
+               #text = ~track.name,
+               #hovertemplate = paste('<br><b>Song name</b>: %{text}') )
 fig
 
 #'Based on the output I'm really only confident that the smallest cluster carries the most truth
 #'The two majority clusters could be broken further. Possible next step would be to use another method.
+
+
+
+
+
+
 
 #'Clustering based on Optimal-k which may be categorizing based on the my most listened to genres
 #'(1) - Pop  (2) - EDM (3) - Country
