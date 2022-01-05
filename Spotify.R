@@ -2,6 +2,9 @@
 #'Need to use the most updated version of package by devtools
 #' devtools::install_github('charlie86/spotifyr')
 #' install.packages('httpuv')
+#' 
+#' factoextra: Extract and Visualize the Results of Multivariate Data Analyses
+#' 
 
 libs <- c('data.table', 'magrittr', 'spotifyr', 'ggplot2', 'factoextra') 
 lapply(libs, require, character.only = T)
@@ -34,23 +37,23 @@ data <- data_temp[, dup := duplicated(c(data_temp$track.name), data_temp$track.a
                   'time_signature', 'added_at', 'track.artists', 'track.duration_ms', 'track.name', 
                   'track.popularity', 'track.album.name', 'track.album.release_date', 
                   'key_name', 'mode_name', 'key_mode', 'track.album.artists')] %>%
-  .[, Artist := track.album.artists[[1]]$`name`[1], by =  'track.name']
+  .[, artist := track.album.artists[[1]]$`name`[1], by =  'track.name']
 
 
 
 #Need to make a distance metric and then color by distance 
-ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'ALL SAVED']$id) %>%
-  as.data.table %>%
-  .[!is.na(valence)] %>%
-  .[, Artist := track.album.artists[[1]]$`name`[1], by =  'track.name'] %>%
-  .[, dance_valence := ((danceability^2)+(valence^2))/2] %>% #LOW CORRELATION - PERSONAL HIGH RELATIONSHIP - SAME
-  .[, loud_energy := ((energy^2)+(loudness^2))/2] %>% #HIGH CORRELATION - SAME
-  .[, acoustic_energy := ((acousticness^2)+(energy^2))/2] %>% #SLIGHT CORRELATION - CROSS
-  .[, acoustic_loudness := ((acousticness^2)+(loudness^2))/2] %>% #SLIGHT CORRELATION - CROSS
-  .[, dance_energy := ((danceability^2)+(energy^2))/2] %>% #CROSS
-  .[, valence_tempo := ((valence^2)+(tempo^2))/2] %>% #SAME
-  .[, vibes := ((speechiness^2)+(acousticness^2)+(instrumentalness^2))/2] %>%
-  setcolorder(., 'Artist')
+# ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_playlists[name %in% 'ALL SAVED']$id) %>%
+#   as.data.table %>%
+#   .[!is.na(valence)] %>%
+#   .[, Artist := track.album.artists[[1]]$`name`[1], by =  'track.name'] %>%
+#   .[, dance_valence := ((danceability^2)+(valence^2))/2] %>% #LOW CORRELATION - PERSONAL HIGH RELATIONSHIP - SAME
+#   .[, loud_energy := ((energy^2)+(loudness^2))/2] %>% #HIGH CORRELATION - SAME
+#   .[, acoustic_energy := ((acousticness^2)+(energy^2))/2] %>% #SLIGHT CORRELATION - CROSS
+#   .[, acoustic_loudness := ((acousticness^2)+(loudness^2))/2] %>% #SLIGHT CORRELATION - CROSS
+#   .[, dance_energy := ((danceability^2)+(energy^2))/2] %>% #CROSS
+#   .[, valence_tempo := ((valence^2)+(tempo^2))/2] %>% #SAME
+#   .[, vibes := ((speechiness^2)+(acousticness^2)+(instrumentalness^2))/2] %>%
+#   setcolorder(., 'Artist')
 
 #'NORMALIZATION OR STANDARDIZATION
 #'Considered manipulating the data; however, since the current goal is to accept any song
@@ -58,14 +61,14 @@ ALLSAVED <- get_playlist_audio_features(username = my_id, playlist_uris = my_pla
 #'rather acknowledge that I need more experience in another genre than to give them a 
 #'recommendation that isn't completely explored.
 
-
-
-
-
 #'Data Variable Selection
-test_correlation <- data[, c('danceability', 'energy', 'key', 'loudness', 'mode', 
-                                 'speechiness', 'acousticness', 'instrumentalness',
-                                 'liveness', 'valence', 'tempo', 'track.popularity')]
+DT_full <- data[, c('danceability', 'energy', 'key', 'loudness', 'mode', 
+                             'speechiness', 'acousticness', 'instrumentalness',
+                             'liveness', 'valence', 'tempo', 'track.popularity', 
+                             'track.name', 'artist')]
+
+
+test_correlation <- DT_full[, -c('track.name', 'artist')]
 
 library(corrplot) ; set.seed(123)
 M <- cor(x = test_correlation, use = 'complete.obs') #Telling correlation to ignore NA
@@ -73,16 +76,6 @@ col1 <- colorRampPalette(c('#1DB954', '#FFFFFF', '#191414'))
 
 corrplot(M, method = 'circle', order = 'hclust', addrect = 3,  addCoef.col = 'black', tl.col = 'black', 
          tl.srt = 45, col = col1(100), title = 'Correlation of Music Features')
-
-
-# tri_vars <- c('dance_valence', 'loud_energy', #89.6%
-#               'track.name')  
-# # tri_vars <- c('dance_valence', 'acoustic_loudness',
-# #               'track.name')  
-# 
-# tri_vars <- c('danceability', 'energy', 'valence', 'track.name')
-# 
-# kmeans_DT <- ALLSAVED[, ..tri_vars] 
 
 
 #SHOULD ALSO SUPPORT THIS STUDY WITH A PCA OR SVD!!!!!! - also normalize before or after??
@@ -103,8 +96,6 @@ lines(x = 1:NROW(singular_values), y = rep(singular_values[3], NROW(singular_val
 
 #'Low Rank Approximation is showing that 2 groups can be seen, but we should take time
 #'to look at the other optimal-k methods to assure that 2 groups are being seen.
-
-
 
 
 #Determining optimal-k using two direct methods and statistical testing analysis
@@ -129,14 +120,15 @@ fviz_nbclust(x = test_correlation_saved, kmeans, nstart = 25, nboot = 50, method
 
 
 #Determining optimal-k using dedrogram from Hierarchical Clustering
-#kmeans_DT2 <- ALLSAVED[, c('danceability', 'energy', 'tempo', 'track.name')] 
 #' Seems like for Hierarchical Clustering an important step to complete is
 #' standardization and this can be done through normalize() function. It's
-#' imperative to standardize, because HC is using distances and similiarities
+#' imperative to standardize, because HC is using distances and similarities
 #' need to be differentiated more appropriately
 
+test_correlation <- DT_full[complete.cases(DT_full)]
+
 HC_data <- normalize(test_correlation)
-d <- dist(test_correlation)
+d <- dist(test_correlation[, -c('track.name', 'artist')])
 clusters <- hclust(d, method = 'average')
 plot(clusters)
 
@@ -148,18 +140,28 @@ HIER_INFO <- cbind(test_correlation, clusterCut) %>% as.data.table
 
 
 
-#'Visually understand before finding actually applying an optimal-k through different methods
+#'[PART 1] Interactive plotly graph to understand the difference between the 3 different clusters
+#'based on the Hierarchical Clustering
+#'Danceability, Energy, Valence
 fig <- plot_ly(data = HIER_INFO, x = ~danceability, y = ~energy, z = ~valence, 
-               color = clusterCut)
-               #text = ~track.name,
-               #hovertemplate = paste('<br><b>Song name</b>: %{text}') )
+               color = clusterCut,
+               text = ~track.name,
+               hovertemplate = paste('<br><b>Song name</b>: %{text}') )
 fig
 
-#'Based on the output I'm really only confident that the smallest cluster carries the most truth
-#'The two majority clusters could be broken further. Possible next step would be to use another method.
 
 
+#'[PART 2]
+#'Loudness, Energy, Valence
+fig2 <- plot_ly(data = HIER_INFO, x = ~loudness, y = ~energy, z = ~valence, 
+               color = clusterCut,
+               text = ~track.name,
+               hovertemplate = paste('<br><b>Song name</b>: %{text}') )
+fig2
 
+#'Based on the plots above, it's not very clear to see the differences in types of music. 
+#'They are all following a similar trend and it's slightly difficult to see any difference. 
+#'If we could maximize the distances between them then maybe we can see a larger disparity
 
 
 
@@ -168,10 +170,10 @@ fig
 #'(1) - Pop  (2) - EDM (3) - Country
 #'(4) - Chill (5) - Rap&HipHop
 set.seed(123)
-kmeans_DT <- ALLSAVED[, c('dance_valence', 'loud_energy', 'track.name')] 
+kmeans_DT <- test_correlation[, c('loudness', 'energy', 'valence', 'track.name')] #test_correlation[, c('dance_valence', 'loud_energy', 'track.name')] 
 x <- kmeans(x = kmeans_DT[, -c('track.name')], centers = 4, iter.max = 20)
 x$cluster <- as.character(as.factor(x$cluster) )
-x #84.8% 
+x #85.4% 
 
 INFO_1 <- cbind(kmeans_DT, x$cluster)
 
